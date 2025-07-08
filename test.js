@@ -6,6 +6,10 @@ const rcodes = require('./rcodes')
 const opcodes = require('./opcodes')
 const optioncodes = require('./optioncodes')
 
+const ip = require('@leichtgewicht/ip-codec')
+
+const hexdump = require('./hexdump')
+
 tape('unknown', function (t) {
   testEncoder(t, packet.unknown, Buffer.from('hello world'))
   t.end()
@@ -614,6 +618,244 @@ tape('tlsa', function (t) {
   })
   t.end()
 })
+
+
+const unhexlify = (hex) => {
+    return Buffer.from(hex.match(/[\da-f]{2}/gi).map(function (h) {return parseInt(h, 16)}))
+}
+
+// <HTTPS SVCB test cases>
+const debug_https = false
+const test_http_decode_encode = (t, testname, packetbuf, expected, skip_encode=false, skip_memcmp_bufs=false) => {
+  const decoded = packet.httpssvc.decode(packetbuf, 0)
+  if (debug_https) {
+    console.log(`${testname}: decode:`)
+    console.log(JSON.stringify(decoded, null, 2))
+  }
+  t.ok(compare(t, decoded, expected), testname + ' decode')
+  const encoded = packet.httpssvc.encode(expected)
+  if (!skip_encode) {
+    if (debug_https) {
+      console.log(`${testname}: encode:`)
+      hexdump(encoded)
+    }
+    if (!skip_memcmp_bufs) {
+      t.ok(compare(t, packetbuf, encoded), testname + ' encode memcmp')
+    }
+    // now decode the encoded buffer and check for sameness
+    const recoded = packet.httpssvc.decode(encoded, 0)
+    if (debug_https) {
+      console.log(`${testname}: recode`)
+      console.log(JSON.stringify(decoded, null, 2))
+    }
+    t.ok(compare(t, recoded, expected), testname + ' recode')
+  }
+  return encoded
+}
+
+tape('https svcb', function (t) {
+  // see https://datatracker.ietf.org/doc/rfc9460/ for the test vectors
+
+  // https AliasMode
+  test_http_decode_encode(t, 'https rfc9460 case1 (AliasMode)',
+    unhexlify(
+      "00 13"                                              + // rdata len
+      "00 00"                                              + // priority
+      "03 66 6f 6f 07 65 78 61 6d 70 6c 65 03 63 6f 6d 00"   //target
+    ), 
+    {
+      priority: 0,
+      name: 'foo.example.com'
+    }
+  )
+
+  // https target name is "."
+  test_http_decode_encode(t, 'https rfc9460 case2 (target name ".")',
+    unhexlify(
+      "00 03"                                              + // rdata len
+      "00 01"                                              + // priority
+      "00"                                                   // target (root label)
+    ),
+    {
+      priority: 1,
+      name: '.'
+    }
+  )
+
+  // https port
+  test_http_decode_encode(t, 'https rfc9460 case3 (port)',
+    unhexlify(
+      "00 19"                                              + // rdata len
+      "00 10"                                              + // priority
+      "03 66 6f 6f 07 65 78 61 6d 70 6c 65 03 63 6f 6d 00" + // target
+      "00 03"                                              + // key 3
+      "00 02"                                              + // length 2
+      "00 35"                                                // value - target (root label)
+    ),
+    {
+      priority: 16,
+      name: 'foo.example.com',
+      values: {
+        port: 53
+      }
+    }
+  )
+
+  // https generic key and value
+  test_http_decode_encode(t, 'https rfc9460 case4 (generic key,val)',
+    unhexlify(
+      "00 1c"                                              + // rdata len
+      "00 01"                                              + // priority
+      "03 66 6f 6f 07 65 78 61 6d 70 6c 65 03 63 6f 6d 00" + // target
+      "02 9b"                                              + // key 667
+      "00 05"                                              + // length 5
+      "68 65 6c 6c 6f"                                       // value
+    ),
+    {
+      priority: 1,
+      name: 'foo.example.com',
+      values: {
+        key667: 'hello'
+      }
+    },
+    true //skip_encode, we cannot encode an unknown key
+  )
+
+  // https generic key and value with decimal escape
+  test_http_decode_encode(t, 'https rfc9460 case5 (generic key,val with escape)',
+    unhexlify(
+      "00 20"                                              + // rdata len
+      "00 01"                                              + // priority
+      "03 66 6f 6f 07 65 78 61 6d 70 6c 65 03 63 6f 6d 00" + // target
+      "02 9b"                                              + // key 667
+      "00 09"                                              + // length 9
+      "68 65 6c 6c 6f d2 71 6f 6f"                           // value
+    ),
+    {
+      priority: 1,
+      name: 'foo.example.com',
+      values: {
+        key667: unhexlify("68 65 6c 6c 6f d2 71 6f 6f").toString("utf-8")
+      },
+    },
+    true // skip_encode, we cannot encode an unknown key
+  )
+
+  // https two quoted ipv6 hints
+  test_http_decode_encode(t, 'https rfc9460 case6 (ipv6hint)',
+    unhexlify(
+      "00 37"                                              + // rdata len
+      "00 01"                                              + // priority
+      "03 66 6f 6f 07 65 78 61 6d 70 6c 65 03 63 6f 6d 00" + // target
+      "00 06"                                              + // key 6
+      "00 20"                                              + // length 32
+      "20 01 0d b8 00 00 00 00 00 00 00 00 00 00 00 01"    + // first address
+      "20 01 0d b8 00 00 00 00 00 00 00 00 00 53 00 01"      // second address
+    ),
+    {
+      priority: 1,
+      name: "foo.example.com",
+      values: {
+        ipv6hint: [
+          "2001:db8::1",
+          "2001:db8::53:1"
+        ]
+      }
+    }
+  )
+
+  // https ipv6 hint using embedded ipv4 syntax [2001:db8:122:344::192.0.2.33]
+  test_http_decode_encode(t, 'https rfc9460 case7 (ipv6hint v4 syntax)',
+    unhexlify(
+      "00 23"                                              + // rdata len
+      "00 01"                                              + // priority
+      "07 65 78 61 6d 70 6c 65 03 63 6f 6d 00"             + // target
+      "00 06"                                              + // key 6
+      "00 10"                                              + // length 16
+      "20 01 0d b8 01 22 03 44 00 00 00 00 c0 00 02 21"      // address
+    ),
+    {
+      priority: 1,
+      name: "example.com",
+      values: {
+        ipv6hint: [ ip.v6.decode(ip.v6.encode("2001:db8:122:344::192.0.2.33")) ]
+      }
+    }
+  )
+
+  // case 8
+  // https 16 foo.example.org. (
+  //    alpn=h2,h3-19 mandatory=ipv4hint,alpn
+  //    ipv4hint=192.0.2.1
+  // )
+  //
+  // note: this may not encode to the same buffer due to internal js
+  //       ordering of the `values` object storing the params
+  test_http_decode_encode(t, 'https rfc9460 case8 (alpn,mandatory,ipv4hint)',
+    unhexlify(
+      "00 30"                                              + // rdata len
+      "00 10"                                              + // priority
+      "03 66 6f 6f 07 65 78 61 6d 70 6c 65 03 6f 72 67 00" + // target
+      "00 00"                                              + // key 0
+      "00 04"                                              + // param length 4
+      "00 01"                                              + // value: key 1
+      "00 04"                                              + // value: key 4
+      "00 01"                                              + // key 1
+      "00 09"                                              + // param length 9
+      "02"                                                 + // alpn length 2
+      "68 32"                                              + // alpn value
+      "05"                                                 + // alpn length 5
+      "68 33 2d 31 39"                                     + // alpn value
+      "00 04"                                              + // key 4
+      "00 04"                                              + // param length 4
+      "c0 00 02 01"                                          // param value
+    ),
+    {
+      priority: 16,
+      name: "foo.example.org",
+      values: {
+        mandatory: [
+          "alpn",
+          "ipv4hint"
+        ],
+        alpn: [
+          "h2",
+          "h3-19"
+        ],
+        ipv4hint: [
+          "192.0.2.1"
+        ]
+      }
+    },
+    false, // skip_encode: false
+    true,  // skip_memcmp_bufs: true, do not directly memcmp the resulting bufs, see comment above
+  )
+
+  testEncoder(t, packet.httpssvc, {
+      priority: 16,
+      name: "foo.example.org",
+      values: {
+        mandatory: [
+          "alpn",
+          "ipv4hint"
+        ],
+        alpn: [
+          "h2",
+          "h3-19"
+        ],
+        ipv4hint: [
+          "192.0.2.1"
+        ]
+      }
+    }
+  )
+
+
+  t.end()
+})
+
+// </HTTPS SVCB test cases>
+
 
 tape('unpack', function (t) {
   const buf = Buffer.from([
