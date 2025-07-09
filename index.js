@@ -1848,6 +1848,8 @@ rhttpssvc.encodingLength = function (data) {
   return len
 }
 
+const rsvcb = rhttpssvc // SCVB is the same parser as HTTPS
+exports.svcb = rsvcb
 
 const renc = exports.record = function (type) {
   switch (type.toUpperCase()) {
@@ -1874,6 +1876,7 @@ const renc = exports.record = function (type) {
     case 'DS': return rds
     case 'NAPTR': return rnaptr
     case 'TLSA': return rtlsa
+    case 'SVCB': return rsvcb
     case 'HTTPS': return rhttpssvc
   }
   return runknown

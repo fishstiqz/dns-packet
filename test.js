@@ -626,13 +626,40 @@ const unhexlify = (hex) => {
 
 // <HTTPS SVCB test cases>
 const debug_https = false
-const test_http_decode_encode = (t, testname, packetbuf, expected, skip_encode=false, skip_memcmp_bufs=false) => {
+
+const test_scvb_decode_encode = (t, testname, packetbuf, expected, skip_encode=false, skip_memcmp_bufs=false) => {
+  const decoded = packet.svcb.decode(packetbuf, 0)
+  if (debug_https) {
+    console.log(`${testname}: decode:`)
+    console.log(JSON.stringify(decoded, null, 2))
+  }
+  t.ok(compare(t, decoded, expected), 'svcb ' + testname + ' decode')
+  const encoded = packet.svcb.encode(expected)
+  if (!skip_encode) {
+    if (debug_https) {
+      console.log(`${testname}: encode:`)
+      hexdump(encoded)
+    }
+    if (!skip_memcmp_bufs) {
+      t.ok(compare(t, packetbuf, encoded), 'svcb ' + testname + ' encode memcmp')
+    }
+    // now decode the encoded buffer and check for sameness
+    const recoded = packet.svcb.decode(encoded, 0)
+    if (debug_https) {
+      console.log(`${testname}: recode`)
+      console.log(JSON.stringify(decoded, null, 2))
+    }
+    t.ok(compare(t, recoded, expected), 'svcb ' + testname + ' recode')
+  }
+}
+
+const test_https_decode_encode = (t, testname, packetbuf, expected, skip_encode=false, skip_memcmp_bufs=false) => {
   const decoded = packet.httpssvc.decode(packetbuf, 0)
   if (debug_https) {
     console.log(`${testname}: decode:`)
     console.log(JSON.stringify(decoded, null, 2))
   }
-  t.ok(compare(t, decoded, expected), testname + ' decode')
+  t.ok(compare(t, decoded, expected), 'https ' + testname + ' decode')
   const encoded = packet.httpssvc.encode(expected)
   if (!skip_encode) {
     if (debug_https) {
@@ -640,7 +667,7 @@ const test_http_decode_encode = (t, testname, packetbuf, expected, skip_encode=f
       hexdump(encoded)
     }
     if (!skip_memcmp_bufs) {
-      t.ok(compare(t, packetbuf, encoded), testname + ' encode memcmp')
+      t.ok(compare(t, packetbuf, encoded), 'https ' + testname + ' encode memcmp')
     }
     // now decode the encoded buffer and check for sameness
     const recoded = packet.httpssvc.decode(encoded, 0)
@@ -648,16 +675,61 @@ const test_http_decode_encode = (t, testname, packetbuf, expected, skip_encode=f
       console.log(`${testname}: recode`)
       console.log(JSON.stringify(decoded, null, 2))
     }
-    t.ok(compare(t, recoded, expected), testname + ' recode')
+    t.ok(compare(t, recoded, expected), 'https ' + testname + ' recode')
   }
   return encoded
 }
 
+const test_https_svcb_decode_encode = (t, testname, packetbuf, expected, skip_encode=false, skip_memcmp_bufs=false) => {
+  test_scvb_decode_encode(t,  testname, packetbuf, expected, skip_encode, skip_memcmp_bufs)
+  return test_https_decode_encode(t,  testname, packetbuf, expected, skip_encode, skip_memcmp_bufs)
+}
+
 tape('https svcb', function (t) {
-  // see https://datatracker.ietf.org/doc/rfc9460/ for the test vectors
+  // for the test vectors see:
+  //   https://datatracker.ietf.org/doc/rfc9460/
+  //   https://github.com/MikeBishop/dns-alt-svc/blob/main/draft-ietf-dnsop-svcb-https.md
+
+  testEncoder(t, packet.svcb, {
+      priority: 16,
+      name: "foo.example.org",
+      values: {
+        mandatory: [
+          "alpn",
+          "ipv4hint"
+        ],
+        alpn: [
+          "h2",
+          "h3-19"
+        ],
+        ipv4hint: [
+          "192.0.2.1"
+        ]
+      }
+    }
+  )
+
+  testEncoder(t, packet.httpssvc, {
+      priority: 16,
+      name: "foo.example.org",
+      values: {
+        mandatory: [
+          "alpn",
+          "ipv4hint"
+        ],
+        alpn: [
+          "h2",
+          "h3-19"
+        ],
+        ipv4hint: [
+          "192.0.2.1"
+        ]
+      }
+    }
+  )
 
   // https AliasMode
-  test_http_decode_encode(t, 'https rfc9460 case1 (AliasMode)',
+  test_https_svcb_decode_encode(t, 'rfc9460 case1 (AliasMode)',
     unhexlify(
       "00 13"                                              + // rdata len
       "00 00"                                              + // priority
@@ -670,7 +742,7 @@ tape('https svcb', function (t) {
   )
 
   // https target name is "."
-  test_http_decode_encode(t, 'https rfc9460 case2 (target name ".")',
+  test_https_svcb_decode_encode(t, 'rfc9460 case2 (target name ".")',
     unhexlify(
       "00 03"                                              + // rdata len
       "00 01"                                              + // priority
@@ -683,7 +755,7 @@ tape('https svcb', function (t) {
   )
 
   // https port
-  test_http_decode_encode(t, 'https rfc9460 case3 (port)',
+  test_https_svcb_decode_encode(t, 'rfc9460 case3 (port)',
     unhexlify(
       "00 19"                                              + // rdata len
       "00 10"                                              + // priority
@@ -702,7 +774,7 @@ tape('https svcb', function (t) {
   )
 
   // https generic key and value
-  test_http_decode_encode(t, 'https rfc9460 case4 (generic key,val)',
+  test_https_svcb_decode_encode(t, 'rfc9460 case4 (generic key,val)',
     unhexlify(
       "00 1c"                                              + // rdata len
       "00 01"                                              + // priority
@@ -722,7 +794,7 @@ tape('https svcb', function (t) {
   )
 
   // https generic key and value with decimal escape
-  test_http_decode_encode(t, 'https rfc9460 case5 (generic key,val with escape)',
+  test_https_svcb_decode_encode(t, 'rfc9460 case5 (generic key,val with escape)',
     unhexlify(
       "00 20"                                              + // rdata len
       "00 01"                                              + // priority
@@ -742,7 +814,7 @@ tape('https svcb', function (t) {
   )
 
   // https two quoted ipv6 hints
-  test_http_decode_encode(t, 'https rfc9460 case6 (ipv6hint)',
+  test_https_svcb_decode_encode(t, 'rfc9460 case6 (ipv6hint)',
     unhexlify(
       "00 37"                                              + // rdata len
       "00 01"                                              + // priority
@@ -765,7 +837,7 @@ tape('https svcb', function (t) {
   )
 
   // https ipv6 hint using embedded ipv4 syntax [2001:db8:122:344::192.0.2.33]
-  test_http_decode_encode(t, 'https rfc9460 case7 (ipv6hint v4 syntax)',
+  test_https_svcb_decode_encode(t, 'rfc9460 case7 (ipv6hint v4 syntax)',
     unhexlify(
       "00 23"                                              + // rdata len
       "00 01"                                              + // priority
@@ -791,7 +863,7 @@ tape('https svcb', function (t) {
   //
   // note: this may not encode to the same buffer due to internal js
   //       ordering of the `values` object storing the params
-  test_http_decode_encode(t, 'https rfc9460 case8 (alpn,mandatory,ipv4hint)',
+  test_https_svcb_decode_encode(t, 'rfc9460 case8 (alpn,mandatory,ipv4hint)',
     unhexlify(
       "00 30"                                              + // rdata len
       "00 10"                                              + // priority
@@ -831,27 +903,117 @@ tape('https svcb', function (t) {
     true,  // skip_memcmp_bufs: true, do not directly memcmp the resulting bufs, see comment above
   )
 
-  testEncoder(t, packet.httpssvc, {
-      priority: 16,
-      name: "foo.example.org",
-      values: {
-        mandatory: [
-          "alpn",
-          "ipv4hint"
-        ],
-        alpn: [
-          "h2",
-          "h3-19"
-        ],
-        ipv4hint: [
-          "192.0.2.1"
-        ]
-      }
-    }
+  t.end()
+})
+
+tape('cloudflare real world svcb/https', (t) => {
+  const https_buf = unhexlify(
+    "ef 23 81 80 00 01 00 01 00 00 00 01 09 63 6f 6d" +
+    "6d 75 6e 69 74 79 0a 63 6c 6f 75 64 66 6c 61 72" +
+    "65 03 63 6f 6d 00 00 41 00 01 09 63 6f 6d 6d 75" +
+    "6e 69 74 79 0a 63 6c 6f 75 64 66 6c 61 72 65 03" +
+    "63 6f 6d 00 00 41 00 01 00 00 00 3c 00 3d 00 01" +
+    "00 00 01 00 06 02 68 33 02 68 32 00 04 00 08 68" +
+    "12 02 43 68 12 03 43 00 06 00 20 26 06 47 00 00" +
+    "00 00 00 00 00 00 00 68 12 02 43 26 06 47 00 00" +
+    "00 00 00 00 00 00 00 68 12 03 43 00 00 29 02 00" +
+    "00 00 00 00 00 00"
+  )
+  const svcb_buf = unhexlify(
+    "ef 23 81 80 00 01 00 01 00 00 00 01 09 63 6f 6d" +
+    "6d 75 6e 69 74 79 0a 63 6c 6f 75 64 66 6c 61 72" +
+    "65 03 63 6f 6d 00 00 40 00 01 09 63 6f 6d 6d 75" +
+    "6e 69 74 79 0a 63 6c 6f 75 64 66 6c 61 72 65 03" +
+    "63 6f 6d 00 00 40 00 01 00 00 00 3c 00 3d 00 01" +
+    "00 00 01 00 06 02 68 33 02 68 32 00 04 00 08 68" +
+    "12 02 43 68 12 03 43 00 06 00 20 26 06 47 00 00" +
+    "00 00 00 00 00 00 00 68 12 02 43 26 06 47 00 00" +
+    "00 00 00 00 00 00 00 68 12 03 43 00 00 29 02 00" +
+    "00 00 00 00 00 00"
   )
 
+  let expected = {
+    id: 61219,
+    type: "response",
+    flags: 384,
+    flag_qr: true,
+    opcode: "QUERY",
+    flag_aa: false,
+    flag_tc: false,
+    flag_rd: true,
+    flag_ra: true,
+    flag_z: false,
+    flag_ad: false,
+    flag_cd: false,
+    rcode: "NOERROR",
+    questions: [
+      {
+        name: "community.cloudflare.com",
+        type: "HTTPS",
+        class: "IN"
+      }
+    ],
+    answers: [
+      {
+        name: "community.cloudflare.com",
+        type: "HTTPS",
+        ttl: 60,
+        class: "IN",
+        flush: false,
+        data: {
+          priority: 1,
+          name: ".",
+          values: {
+            alpn: [
+              "h3",
+              "h2"
+            ],
+            ipv4hint: [
+              "104.18.2.67",
+              "104.18.3.67"
+            ],
+            ipv6hint: [
+              "2606:4700::6812:243",
+              "2606:4700::6812:343"
+            ]
+          }
+        }
+      }
+    ],
+    authorities: [],
+    additionals: [
+      {
+        name: ".",
+        type: "OPT",
+        udpPayloadSize: 512,
+        extendedRcode: 0,
+        ednsVersion: 0,
+        flags: 0,
+        flag_do: false,
+        options: []
+      }
+    ]
+  }
+
+  const decoded_https = packet.decode(https_buf)
+  t.ok(decoded_https, "cloudflare real world https decoded")
+  if (debug_https) {
+    console.log(`cloudflare real world: decoded_https:`)
+    console.log(JSON.stringify(decoded_https, null, 2))
+  }
+  t.ok(compare(t, decoded_https, expected), "cloudflare real world https compare")
+
+  const decoded_svcb = packet.decode(svcb_buf)
+  t.ok(decoded_svcb, "cloudflare real world svcb decoded")
+  if (debug_https) {
+    console.log(`cloudflare real world: decoded_svcb:`)
+    console.log(JSON.stringify(decoded_svcb, null, 2))
+  }
+  expected.questions[0].type = expected.answers[0].type = "SVCB"
+  t.ok(compare(t, decoded_svcb, expected), "cloudflare real world svcb compare")
 
   t.end()
+
 })
 
 // </HTTPS SVCB test cases>
