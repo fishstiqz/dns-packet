@@ -1485,7 +1485,7 @@ rtlsa.encodingLength = function (cert) {
 
 const svcparam = exports.svcparam = {}
 
-svcparam.keyToNumber = function(keyName) {
+svcparam.keyToNumber = function (keyName) {
   switch (keyName.toLowerCase()) {
     case 'mandatory': return 0
     case 'alpn' : return 1
@@ -1505,7 +1505,7 @@ svcparam.keyToNumber = function(keyName) {
   return Number.parseInt(keyName.substring(3))
 }
 
-svcparam.numberToKeyName = function(number) {
+svcparam.numberToKeyName = function (number) {
   switch (number) {
     case 0 : return 'mandatory'
     case 1 : return 'alpn'
@@ -1521,11 +1521,11 @@ svcparam.numberToKeyName = function(number) {
   return `key${number}`
 }
 
-svcparam.encode = function(param, buf, offset) {
+svcparam.encode = function (param, buf, offset) {
   if (!buf) buf = Buffer.allocUnsafe(svcparam.encodingLength(param))
   if (!offset) offset = 0
 
-  let key = param.key;
+  let key = param.key
   if (typeof param.key !== 'number') {
     key = svcparam.keyToNumber(param.key)
   }
@@ -1533,10 +1533,10 @@ svcparam.encode = function(param, buf, offset) {
   offset += 2
   svcparam.encode.bytes = 2
 
-  if (key == 0) { // mandatory
+  if (key === 0) { // mandatory
     let values = param.value
     if (!Array.isArray(values)) values = [values]
-    buf.writeUInt16BE(values.length*2, offset)
+    buf.writeUInt16BE(values.length * 2, offset)
     offset += 2
     svcparam.encode.bytes += 2
 
@@ -1548,13 +1548,14 @@ svcparam.encode = function(param, buf, offset) {
       offset += 2
       svcparam.encode.bytes += 2
     }
-  } else if (key == 1) { // alpn
+  } else if (key === 1) { // alpn
     let val = param.value
     if (!Array.isArray(val)) val = [val]
     // The alpn param is prefixed by its length as a single byte, so the
     // initialValue to reduce function is the length of the array.
-    let total = val.reduce(function(result, id) {
-      return result += id.length
+    let total = val.reduce(function (result, id) {
+      result += id.length
+      return result
     }, val.length)
 
     buf.writeUInt16BE(total, offset)
@@ -1570,22 +1571,22 @@ svcparam.encode = function(param, buf, offset) {
       offset += id.length
       svcparam.encode.bytes += id.length
     }
-  } else if (key == 2) { // no-default-alpn
+  } else if (key === 2) { // no-default-alpn
     buf.writeUInt16BE(0, offset)
     offset += 2
     svcparam.encode.bytes += 2
-  } else if (key == 3) { // port
+  } else if (key === 3) { // port
     buf.writeUInt16BE(2, offset)
     offset += 2
     svcparam.encode.bytes += 2
     buf.writeUInt16BE(param.value || 0, offset)
     offset += 2
     svcparam.encode.bytes += 2
-  } else if (key == 4) { //ipv4hint
+  } else if (key === 4) { // ipv4hint
     let val = param.value
     if (!Array.isArray(val)) val = [val]
-    buf.writeUInt16BE(val.length*4, offset)
-    offset += 2;
+    buf.writeUInt16BE(val.length * 4, offset)
+    offset += 2
     svcparam.encode.bytes += 2
 
     for (let host of val) {
@@ -1593,7 +1594,7 @@ svcparam.encode = function(param, buf, offset) {
       offset += 4
       svcparam.encode.bytes += 4
     }
-  } else if (key == 5) { //echconfig
+  } else if (key === 5) { // echconfig
     if (svcparam.ech) {
       buf.writeUInt16BE(svcparam.ech.length, offset)
       offset += 2
@@ -1611,10 +1612,10 @@ svcparam.encode = function(param, buf, offset) {
       offset += param.value.length
       svcparam.encode.bytes += param.value.length
     }
-  } else if (key == 6) { //ipv6hint
+  } else if (key === 6) { // ipv6hint
     let val = param.value
-    if (!Array.isArray(val)) val = [val];
-    buf.writeUInt16BE(val.length*16, offset)
+    if (!Array.isArray(val)) val = [val]
+    buf.writeUInt16BE(val.length * 16, offset)
     offset += 2
     svcparam.encode.bytes += 2
 
@@ -1623,32 +1624,32 @@ svcparam.encode = function(param, buf, offset) {
       offset += 16
       svcparam.encode.bytes += 16
     }
-  } else if (key == 7) { // dohpath
+  } else if (key === 7) { // dohpath
     buf.writeUInt16BE(param.value.length, offset)
     offset += 2
     svcparam.encode.bytes += 2
     buf.write(param.value, offset)
     offset += param.value.length
     svcparam.encode.bytes += param.value.length
-  } else if (key == 32769) { //odoh
-      if (svcparam.odoh) {
-        buf.writeUInt16BE(svcparam.odoh.length, offset)
-        offset += 2
-        svcparam.encode.bytes += 2
-        for (let i = 0; i < svcparam.odoh.length; i++) {
-          buf.writeUInt8(svcparam.odoh[i], offset)
-          offset++
-        }
-        svcparam.encode.bytes += svcparam.odoh.length
-        svcparam.odoh = null
-      } else {
-        buf.writeUInt16BE(param.value.length, offset)
-        offset += 2
-        svcparam.encode.bytes += 2
-        buf.write(param.value, offset)
-        offset += param.value.length
-        svcparam.encode.bytes += param.value.length
+  } else if (key === 32769) { // odoh
+    if (svcparam.odoh) {
+      buf.writeUInt16BE(svcparam.odoh.length, offset)
+      offset += 2
+      svcparam.encode.bytes += 2
+      for (let i = 0; i < svcparam.odoh.length; i++) {
+        buf.writeUInt8(svcparam.odoh[i], offset)
+        offset++
       }
+      svcparam.encode.bytes += svcparam.odoh.length
+      svcparam.odoh = null
+    } else {
+      buf.writeUInt16BE(param.value.length, offset)
+      offset += 2
+      svcparam.encode.bytes += 2
+      buf.write(param.value, offset)
+      offset += param.value.length
+      svcparam.encode.bytes += param.value.length
+    }
   } else {
     // XXX: why would we ever succeed here, why not fail with an exception to let the user know?
     // Unknown option
@@ -1656,10 +1657,9 @@ svcparam.encode = function(param, buf, offset) {
     offset += 2
     svcparam.encode.bytes += 2
   }
-
 }
 
-svcparam.encode.bytes = 0;
+svcparam.encode.bytes = 0
 
 svcparam.decode = function (buf, offset) {
   if (!offset) offset = 0
@@ -1701,7 +1701,7 @@ svcparam.decode = function (buf, offset) {
           if (namelen > rem) {
             throw new Error(`Invalid SVCB param ALPN length: ${namelen}. Not enough space left in buffer`)
           }
-          names.push(buf.toString('utf-8', nameoff, nameoff+namelen))
+          names.push(buf.toString('utf-8', nameoff, nameoff + namelen))
           nameoff += namelen
           rem -= namelen
         }
@@ -1753,18 +1753,19 @@ svcparam.decode = function (buf, offset) {
   return param
 }
 
-svcparam.decode.bytes = 0;
+svcparam.decode.bytes = 0
 
 svcparam.encodingLength = function (param) {
   // 2 bytes for type, 2 bytes for length, what's left for the value
 
   switch (param.key) {
-    case 'mandatory' : return 4 + 2*(Array.isArray(param.value) ? param.value.length : 1)
+    case 'mandatory' : return 4 + 2 * (Array.isArray(param.value) ? param.value.length : 1)
     case 'alpn' : {
       let val = param.value
       if (!Array.isArray(val)) val = [val]
-      let total = val.reduce(function(result, id) {
-        return result += id.length
+      let total = val.reduce(function (result, id) {
+        result += id.length
+        return result
       }, val.length)
       return 4 + total
     }
@@ -1773,7 +1774,7 @@ svcparam.encodingLength = function (param) {
     case 'ipv4hint' : return 4 + 4 * (Array.isArray(param.value) ? param.value.length : 1)
     case 'echconfig' : {
       if (param.needBase64Decode) {
-        svcparam.ech = Buffer.from(param.value, "base64")
+        svcparam.ech = Buffer.from(param.value, 'base64')
         return 4 + svcparam.ech.length
       }
       return 4 + param.value.length
@@ -1781,7 +1782,7 @@ svcparam.encodingLength = function (param) {
     case 'ipv6hint' : return 4 + 16 * (Array.isArray(param.value) ? param.value.length : 1)
     case 'odoh' : {
       if (param.needBase64Decode) {
-        svcparam.odoh = Buffer.from(param.value, "base64")
+        svcparam.odoh = Buffer.from(param.value, 'base64')
         return 4 + svcparam.odoh.length
       }
       return 4 + param.value.length
@@ -1796,11 +1797,11 @@ svcparam.encodingLength = function (param) {
 
 const rhttpssvc = exports.httpssvc = {}
 
-rhttpssvc.encode = function(data, buf, offset) {
+rhttpssvc.encode = function (data, buf, offset) {
   if (!buf) buf = Buffer.allocUnsafe(rhttpssvc.encodingLength(data))
   if (!offset) offset = 0
 
-  buf.writeUInt16BE(rhttpssvc.encodingLength(data) - 2 , offset)
+  buf.writeUInt16BE(rhttpssvc.encodingLength(data) - 2, offset)
   offset += 2
 
   buf.writeUInt16BE(data.priority || 0, offset)
@@ -1811,7 +1812,7 @@ rhttpssvc.encode = function(data, buf, offset) {
   offset += name.encode.bytes
 
   for (const [key, value] of Object.entries(data.values || {})) {
-    let val = {key, value}
+    let val = { key, value }
     svcparam.encode(val, buf, offset)
     offset += svcparam.encode.bytes
     rhttpssvc.encode.bytes += svcparam.encode.bytes
@@ -1825,7 +1826,6 @@ rhttpssvc.encode.bytes = 0
 rhttpssvc.decode = function (buf, offset) {
   if (!offset) offset = 0
   let rdlen = buf.readUInt16BE(offset)
-  let oldOffset = offset
   offset += 2
   let record = {}
   record.priority = buf.readUInt16BE(offset)
@@ -1848,7 +1848,7 @@ rhttpssvc.decode = function (buf, offset) {
   return record
 }
 
-rhttpssvc.decode.bytes = 0;
+rhttpssvc.decode.bytes = 0
 
 rhttpssvc.encodingLength = function (data) {
   let len =
@@ -1856,7 +1856,7 @@ rhttpssvc.encodingLength = function (data) {
     2 + // priority
     name.encodingLength(data.name)
   for (const [key, value] of Object.entries(data.values || {})) {
-    len += svcparam.encodingLength({key, value})
+    len += svcparam.encodingLength({ key, value })
   }
   return len
 }
