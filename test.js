@@ -1016,6 +1016,137 @@ tape('cloudflare real world svcb/https', (t) => {
 
 })
 
+tape('google resolver SVCB real world', function (t) {
+  const svcb_buf = unhexlify(
+    "d0 90 85 80 00 01" +
+    "00 02 00 00 00 04 04 5f 64 6e 73 08 72 65 73 6f" +
+    "6c 76 65 72 04 61 72 70 61 00 00 40 00 01 c0 0c" +
+    "00 40 00 01 00 01 51 80 00 16 00 01 03 64 6e 73" +
+    "06 67 6f 6f 67 6c 65 00 00 01 00 04 03 64 6f 74" +
+    "c0 0c 00 40 00 01 00 01 51 80 00 2c 00 02 03 64" +
+    "6e 73 06 67 6f 6f 67 6c 65 00 00 01 00 06 02 68" +
+    "32 02 68 33 00 07 00 10 2f 64 6e 73 2d 71 75 65" +
+    "72 79 7b 3f 64 6e 73 7d 03 64 6e 73 06 67 6f 6f" +
+    "67 6c 65 00 00 01 00 01 00 01 51 80 00 04 08 08" +
+    "08 08 c0 7e 00 01 00 01 00 01 51 80 00 04 08 08" +
+    "04 04 c0 7e 00 1c 00 01 00 01 51 80 00 10 20 01" +
+    "48 60 48 60 00 00 00 00 00 00 00 00 88 88 c0 7e" +
+    "00 1c 00 01 00 01 51 80 00 10 20 01 48 60 48 60" +
+    "00 00 00 00 00 00 00 00 88 44"
+  )
+
+  const expected = {
+    id: 53392,
+    type: "response",
+    flags: 1408,
+    flag_qr: true,
+    opcode: "QUERY",
+    flag_aa: true,
+    flag_tc: false,
+    flag_rd: true,
+    flag_ra: true,
+    flag_z: false,
+    flag_ad: false,
+    flag_cd: false,
+    rcode: "NOERROR",
+    questions: [
+      {
+        name: "_dns.resolver.arpa",
+        type: "SVCB",
+        class: "IN"
+      }
+    ],
+    answers: [
+      {
+        name: "_dns.resolver.arpa",
+        type: "SVCB",
+        ttl: 86400,
+        class: "IN",
+        flush: false,
+        data: {
+          priority: 1,
+          name: "dns.google",
+          values: {
+            alpn: [
+              "dot"
+            ]
+          }
+        }
+      },
+      {
+        name: "_dns.resolver.arpa",
+        type: "SVCB",
+        ttl: 86400,
+        class: "IN",
+        flush: false,
+        data: {
+          priority: 2,
+          name: "dns.google",
+          values: {
+            alpn: [
+              "h2",
+              "h3"
+            ],
+            dohpath: "/dns-query{?dns}"
+          }
+        }
+      }
+    ],
+    authorities: [],
+    additionals: [
+      {
+        name: "dns.google",
+        type: "A",
+        ttl: 86400,
+        class: "IN",
+        flush: false,
+        data: "8.8.8.8"
+      },
+      {
+        name: "dns.google",
+        type: "A",
+        ttl: 86400,
+        class: "IN",
+        flush: false,
+        data: "8.8.4.4"
+      },
+      {
+        name: "dns.google",
+        type: "AAAA",
+        ttl: 86400,
+        class: "IN",
+        flush: false,
+        data: "2001:4860:4860::8888"
+      },
+      {
+        name: "dns.google",
+        type: "AAAA",
+        ttl: 86400,
+        class: "IN",
+        flush: false,
+        data: "2001:4860:4860::8844"
+      }
+    ]
+  }
+
+  const decoded_svcb = packet.decode(svcb_buf)
+  t.ok(decoded_svcb, "google real world svcb decoded")
+  if (debug_https) {
+    console.log(`google real world svcb: decoded_svcb:`)
+    console.log(JSON.stringify(decoded_svcb, null, 2))
+  }
+  t.ok(compare(t, decoded_svcb, expected), "google real world svcb compare")
+
+  // now test encoding and decoding the individual answer data
+  for (let answer of expected.answers) {
+    const encoded_data = packet.svcb.encode(answer.data)
+    const decoded_data = packet.svcb.decode(encoded_data)
+    t.ok(compare(t, answer.data, decoded_data), "google real world answer recode")
+  }
+
+  t.end()
+})
+
 // </HTTPS SVCB test cases>
 
 
