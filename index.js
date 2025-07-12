@@ -118,7 +118,7 @@ name.decode = function (buf, offset, { mail = false } = {}) {
 name.decode.bytes = 0
 
 name.encodingLength = function (n) {
-  if (n === '.' || n === '..') return 1
+  if (n === '.' || n === '..' || n === '') return 1
   return Buffer.byteLength(n.replace(/^\.|\.$/gm, '')) + 2
 }
 
