@@ -1,3 +1,5 @@
+'use strict'
+
 const wout = (s) => {
   process.stdout.write(s)
 }
