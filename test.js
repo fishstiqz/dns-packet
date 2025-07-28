@@ -351,6 +351,13 @@ tape('name_encoding', function (t) {
   t.ok(data === dd, 'encode/decode matches')
   offset += packet.name.encode.bytes
 
+  // test empty names
+  let encbuf = packet.name.encode('..')
+  t.ok(encbuf.length === 1 && encbuf[0] === 0, 'name (..) encoding length and content matches')
+  encbuf = packet.name.encode('.')
+  t.ok(encbuf.length === 1 && encbuf[0] === 0, 'name (.) encoding length and content matches')
+  encbuf = packet.name.encode('')
+  t.ok(encbuf.length === 1 && encbuf[0] === 0, 'name (\'\') encoding length and content matches')
   t.end()
 })
 
