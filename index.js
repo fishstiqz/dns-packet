@@ -1695,7 +1695,7 @@ svcparam.decode = function (buf, offset) {
         let nameoff = offset
         let rem = len
         while (rem >= 2) {
-          const namelen = buf.readUint8(nameoff)
+          const namelen = buf.readUInt8(nameoff)
           nameoff++
           rem--
           if (namelen > rem) {
@@ -1811,8 +1811,10 @@ rhttpssvc.encode = function (data, buf, offset) {
   rhttpssvc.encode.bytes += name.encode.bytes
   offset += name.encode.bytes
 
-  for (const [key, value] of Object.entries(data.values || {})) {
-    let val = { key, value }
+  if (!data.values) data.values = {}
+  for (const key in data.values) {
+    let val = { key, value: data.values[key] }
+    console.log(`val: ${val}`)
     svcparam.encode(val, buf, offset)
     offset += svcparam.encode.bytes
     rhttpssvc.encode.bytes += svcparam.encode.bytes
@@ -1855,8 +1857,9 @@ rhttpssvc.encodingLength = function (data) {
     2 + // rdlen
     2 + // priority
     name.encodingLength(data.name)
-  for (const [key, value] of Object.entries(data.values || {})) {
-    len += svcparam.encodingLength({ key, value })
+  if (!data.values) data.values = {}
+  for (const key in data.values) {
+    len += svcparam.encodingLength({ key, value: data.values[key] })
   }
   return len
 }
